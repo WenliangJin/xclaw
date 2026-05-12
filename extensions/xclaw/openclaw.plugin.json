@@ -42,6 +42,10 @@
         "type": "string",
         "description": "容器/实例 ID（连接时通过 query 参数传递）"
       },
+      "deployType": {
+        "type": "string",
+        "description": "部署类型（连接时通过 query 参数传递）"
+      },
       "reconnectInterval": {
         "type": "number",
         "default": 5000,

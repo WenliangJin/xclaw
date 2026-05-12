@@ -145,6 +145,7 @@ export function registerXClawPlugin(api: OpenClawPluginApi) {
         ip: config.ip,
         port: config.port,
         containerId: config.containerId,
+        deployType: config.deployType,
         streams: config.streams,
       };
     },

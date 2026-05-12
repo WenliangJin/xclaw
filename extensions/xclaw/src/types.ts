@@ -35,6 +35,7 @@ export interface XClawConfig {
   ip?: string;
   port?: number;
   containerId?: string;
+  deployType?: string;
   reconnectInterval: number;
   streams: AgentEventStream[];
 }

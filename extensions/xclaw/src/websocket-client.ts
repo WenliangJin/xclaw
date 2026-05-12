@@ -88,6 +88,9 @@ export class XClawWebSocketClient {
     if (this.config.containerId) {
       url.searchParams.set("containerId", this.config.containerId);
     }
+    if (this.config.deployType) {
+      url.searchParams.set("deployType", this.config.deployType);
+    }
 
     return url.toString();
   }
