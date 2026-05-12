@@ -208,7 +208,7 @@ export function registerXClawPlugin(api: OpenClawPluginApi): void {
               error(`[XClaw] 流式分发错误: ${errorMsg}`);
               client.send({
                 type: "error",
-                error: err.message,
+                error: errorMsg,
                 xclaw: {
                   ip: config.ip,
                   port: config.port,
