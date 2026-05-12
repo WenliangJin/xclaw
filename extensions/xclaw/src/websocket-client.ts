@@ -424,8 +424,11 @@ export class XClawWebSocketClient {
    * 转发 Agent 事件（原生 Gateway ChatEvent 兼容格式）
    */
   forwardEvent(event: AgentEventPayload): boolean {
+    this.log(`[XClaw] 收到事件: stream=${event.stream}, runId=${event.runId}, seq=${event.seq}`);
+
     // 检查是否需要转发该流
     if (this.config.streams.length > 0 && !this.config.streams.includes(event.stream)) {
+      this.log(`[XClaw] 跳过事件: stream=${event.stream} 不在配置列表中`);
       return false;
     }
 
@@ -433,11 +436,13 @@ export class XClawWebSocketClient {
     const nativeChatEvent = this.toNativeChatEvent(event);
 
     if (!this.send(nativeChatEvent)) {
+      this.log(`[XClaw] 连接未就绪，事件加入队列: stream=${event.stream}`);
       // 连接未就绪，加入队列
       this.enqueue(event);
       return false;
     }
 
+    this.log(`[XClaw] 事件已转发: stream=${event.stream}`);
     return true;
   }
 

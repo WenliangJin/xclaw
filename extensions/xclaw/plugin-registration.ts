@@ -108,7 +108,23 @@ export function registerXClawPlugin(api: OpenClawPluginApi) {
     return;
   }
 
-  info(`[XClaw] 注册 XClaw 插件，目标: ${config.websocketUrl}`);
+  info(
+    `[XClaw] 注册 XClaw 插件，目标: ${config.websocketUrl}, streams: ${JSON.stringify(config.streams)}`,
+  );
+
+  // 提前初始化客户端，避免每次事件都动态 import
+  let clientPromise: Promise<ReturnType<typeof import("./src/runtime.js").getXClawClient>> | null =
+    null;
+  const getClient = async () => {
+    if (!clientPromise) {
+      const { getXClawClient } = await import("./src/runtime.js");
+      clientPromise = Promise.resolve(getXClawClient(config, api.logger || console));
+    }
+    return clientPromise;
+  };
+
+  // 提前初始化
+  getClient().catch(() => {});
 
   // 注册 Agent 事件订阅（核心功能）
   api.registerAgentEventSubscription({
@@ -116,16 +132,20 @@ export function registerXClawPlugin(api: OpenClawPluginApi) {
     description: "XClaw 平台流式输出转发器",
     streams: config.streams,
     handle: async (event, ctx) => {
-      // 懒加载运行时代码
-      const { getXClawClient } = await import("./src/runtime.js");
-      const client = getXClawClient(config, api.logger || console);
+      try {
+        const client = await getClient();
+        info(`[XClaw] 事件回调触发: stream=${event.stream}, runId=${event.runId}`);
 
-      // 如果未连接，尝试连接
-      if (client.getStatus() !== "connected") {
-        await client.connect().catch(() => {});
+        // 如果未连接，尝试连接
+        if (client.getStatus() !== "connected") {
+          await client.connect().catch(() => {});
+        }
+
+        client.forwardEvent(event);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        api.logger?.error?.(`[XClaw] 处理事件失败: ${errorMsg}`);
       }
-
-      client.forwardEvent(event);
     },
   });
 
