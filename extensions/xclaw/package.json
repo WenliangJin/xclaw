@@ -1,0 +1,18 @@
+{
+  "name": "openclaw-xclaw",
+  "version": "1.0.0",
+  "description": "OpenClaw Gateway 原生流式输出转发到 XClaw 平台",
+  "author": "XClaw Team",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./*": "./*.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.10"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "extends": [
+    "../../tsconfig.base.json",
+    "../tsconfig.package-boundary.paths.json"
+  ],
+  "compilerOptions": {
+    "outDir": "../../dist/extensions/xclaw",
+    "rootDir": ".",
+    "composite": true
+  },
+  "include": ["*.ts", "src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
