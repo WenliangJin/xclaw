@@ -163,11 +163,57 @@ export class XClawWebSocketClient {
   /**
    * 处理服务端消息
    */
-  private handleServerMessage(message: { type?: string }) {
-    this.log(`[XClaw] 收到服务端消息: ${message.type}`);
+  private async handleServerMessage(message: {
+    type?: string;
+    action?: string;
+    content?: string;
+    sessionKey?: string;
+  }) {
+    this.log(`[XClaw] 收到服务端消息: type=${message.type}, action=${message.action}`);
 
     if (message.type === "pong") {
       // 心跳响应，不需要处理
+      return;
+    }
+
+    // ✅ 处理发送消息请求：type = message, action = send
+    if (message.type === "message" && message.action === "send" && message.content) {
+      await this.sendMessageToOpenClaw(message.content, message.sessionKey);
+    }
+  }
+
+  /**
+   * 发送消息到 OpenClaw
+   * 通过调用本地 Gateway HTTP API 触发对话
+   */
+  private async sendMessageToOpenClaw(content: string, sessionKey?: string): Promise<void> {
+    try {
+      this.log(
+        `[XClaw] 发送消息到 OpenClaw: ${content.substring(0, 50)}${content.length > 50 ? "..." : ""}`,
+      );
+
+      // 调用本地 Gateway HTTP API 发送消息
+      const response = await fetch("http://127.0.0.1:18789/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          content,
+          sessionKey: sessionKey || "default",
+          options: {
+            stream: true,
+          },
+        }),
+      });
+
+      if (response.ok) {
+        this.log("[XClaw] 消息已发送到 OpenClaw");
+      } else {
+        this.error(`[XClaw] 发送消息失败: ${response.status} ${response.statusText}`);
+      }
+    } catch (error) {
+      this.error(`[XClaw] 发送消息异常: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
