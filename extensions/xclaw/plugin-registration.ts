@@ -5,6 +5,7 @@
 
 import type { OpenClawPluginApi, OpenClawPluginService } from "openclaw/plugin-sdk/plugin-entry";
 import type { XClawConfig } from "./src/types.js";
+import { XClawWebSocketClient } from "./src/websocket-client.js";
 
 export const xclawPluginReload = { restartPrefixes: ["xclaw"] };
 
@@ -47,44 +48,24 @@ function getXClawConfig(api: OpenClawPluginApi): XClawConfig {
 /**
  * 创建懒加载的 XClaw 插件服务
  */
-function createLazyXClawPluginService(api: OpenClawPluginApi): OpenClawPluginService {
-  let service: OpenClawPluginService | null = null;
-
-  const loadService = async () => {
-    if (!service) {
-      const config = getXClawConfig(api);
-
-      // 如果未启用，创建空服务
-      if (!config.enabled || !config.websocketUrl) {
-        const info = (api.logger?.info || api.logger?.debug || console.log).bind(
-          api.logger || console,
-        );
-        info("[XClaw] 插件未启用或未配置 WebSocket URL，跳过服务启动");
-        service = {
-          id: "xclaw-service",
-          start: async () => {},
-          stop: async () => {},
-        };
-        return service;
-      }
-
-      const { createXClawPluginService } = await import("./src/runtime.js");
-      service = createXClawPluginService(config);
-    }
-    return service;
-  };
+function createLazyXClawPluginService(
+  api: OpenClawPluginApi,
+  config: XClawConfig,
+  client: XClawWebSocketClient,
+): OpenClawPluginService {
+  const info = (api.logger?.info || api.logger?.debug || console.log).bind(api.logger || console);
 
   return {
     id: "xclaw-service",
     start: async (ctx) => {
-      const loaded = await loadService();
-      await loaded.start(ctx);
+      info("[XClaw] 启动 XClaw 服务...");
+      await client.connect().catch(() => {});
+      info("[XClaw] XClaw 服务启动完成");
     },
     stop: async (ctx) => {
-      if (!service?.stop) {
-        return;
-      }
-      await service.stop(ctx);
+      info("[XClaw] 停止 XClaw 服务...");
+      client.disconnect();
+      info("[XClaw] XClaw 服务已停止");
     },
   };
 }
@@ -112,52 +93,36 @@ export function registerXClawPlugin(api: OpenClawPluginApi) {
     `[XClaw] 注册 XClaw 插件，目标: ${config.websocketUrl}, streams: ${JSON.stringify(config.streams)}`,
   );
 
-  // 提前初始化客户端，避免每次事件都动态 import
-  let clientPromise: Promise<ReturnType<typeof import("./src/runtime.js").getXClawClient>> | null =
-    null;
-  const getClient = async () => {
-    if (!clientPromise) {
-      const { getXClawClient } = await import("./src/runtime.js");
-      clientPromise = Promise.resolve(getXClawClient(config, api.logger || console));
-    }
-    return clientPromise;
-  };
+  // ✅ 同步初始化客户端，避免懒加载时序问题
+  const client = new XClawWebSocketClient(config, api.logger || console);
 
-  // 提前初始化
-  getClient().catch(() => {});
-
-  // 注册 Agent 事件订阅（核心功能）
-  api.registerAgentEventSubscription({
+  // ✅ 注册 Agent 事件订阅（核心功能）
+  // 确保 handle 是同步函数，使用最简化的实现
+  const subscription = {
     id: "xclaw-forwarder",
     description: "XClaw 平台流式输出转发器",
     streams: config.streams,
-    handle: async (event, ctx) => {
+    handle: (event: any, ctx: any) => {
       try {
-        const client = await getClient();
-        info(`[XClaw] 事件回调触发: stream=${event.stream}, runId=${event.runId}`);
-
-        // 如果未连接，尝试连接
-        if (client.getStatus() !== "connected") {
-          await client.connect().catch(() => {});
-        }
-
+        info(`[XClaw] 收到事件: stream=${event.stream}, runId=${event.runId}`);
         client.forwardEvent(event);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        api.logger?.error?.(`[XClaw] 处理事件失败: ${errorMsg}`);
+        warn(`[XClaw] 处理事件失败: ${errorMsg}`);
       }
     },
-  });
+  };
 
-  // 注册插件服务
-  api.registerService(createLazyXClawPluginService(api));
+  api.registerAgentEventSubscription(subscription);
+  info("[XClaw] Agent 事件订阅已注册");
+
+  // ✅ 注册插件服务，启动时自动连接 WebSocket
+  api.registerService(createLazyXClawPluginService(api, config, client));
 
   // 注册 Gateway 方法（用于管理插件）
   api.registerGatewayMethod(
     "xclaw.status",
     async () => {
-      const { getXClawClient } = await import("./src/runtime.js");
-      const client = getXClawClient(config, api.logger || console);
       return {
         enabled: config.enabled,
         status: client.getStatus(),
@@ -178,8 +143,6 @@ export function registerXClawPlugin(api: OpenClawPluginApi) {
   api.registerGatewayMethod(
     "xclaw.reconnect",
     async () => {
-      const { getXClawClient } = await import("./src/runtime.js");
-      const client = getXClawClient(config, api.logger || console);
       client.disconnect();
       await client.connect();
       return {
@@ -190,16 +153,6 @@ export function registerXClawPlugin(api: OpenClawPluginApi) {
       scope: "operator.admin",
     },
   );
-
-  // ✅ 插件注册时立即初始化连接（启动即连接，无需等待第一个事件）
-  import("./src/runtime.js").then(({ getXClawClient }) => {
-    const logger = api.logger || console;
-    const client = getXClawClient(config, logger);
-    client.connect().catch((err) => {
-      const warnFn = logger.warn ? logger.warn.bind(logger) : console.warn;
-      warnFn(`[XClaw] 首次连接失败，后续会自动重试: ${err.message}`);
-    });
-  });
 
   info("[XClaw] 插件注册完成");
 }
