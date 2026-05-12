@@ -36,7 +36,6 @@ export function createXClawEventHandler(config: XClawConfig, logger: Console = c
     },
     stop: () => {
       client.disconnect();
-      client = null;
     },
     getClient: () => client,
   };
