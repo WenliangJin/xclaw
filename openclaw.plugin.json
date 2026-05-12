@@ -1,0 +1,63 @@
+{
+  "id": "xclaw",
+  "name": "XClaw Stream Forwarder",
+  "version": "1.0.0",
+  "description": "OpenClaw Gateway 原生流式输出转发到 XClaw 平台",
+  "author": "XClaw Team",
+  "license": "MIT",
+  "keywords": ["streaming", "websocket", "xclaw", "forwarder"],
+  "activation": {
+    "onStartup": true
+  },
+  "capabilities": {
+    "agentEvents": true,
+    "config": true,
+    "service": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "default": true,
+        "description": "是否启用 XClaw 插件"
+      },
+      "websocketUrl": {
+        "type": "string",
+        "format": "uri",
+        "description": "XClaw 平台 WebSocket 地址，例如: ws://127.0.0.1:8081/api/ws/instance"
+      },
+      "ip": {
+        "type": "string",
+        "description": "本机 IP 地址（连接时通过 query 参数传递）"
+      },
+      "port": {
+        "type": "number",
+        "description": "本机端口（连接时通过 query 参数传递）"
+      },
+      "containerId": {
+        "type": "string",
+        "description": "容器/实例 ID（连接时通过 query 参数传递）"
+      },
+      "deployType": {
+        "type": "string",
+        "description": "部署类型（连接时通过 query 参数传递）"
+      },
+      "reconnectInterval": {
+        "type": "number",
+        "default": 5000,
+        "description": "自动重连间隔（毫秒），默认 5 秒"
+      },
+      "streams": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "default": ["assistant", "tool", "lifecycle", "thinking", "error", "command_output", "patch", "plan", "approval", "item"],
+        "description": "需要转发的事件流列表"
+      }
+    },
+    "required": ["websocketUrl"]
+  }
+}
