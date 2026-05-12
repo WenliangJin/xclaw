@@ -3,6 +3,8 @@
  * 按照 OpenClaw extension 标准结构实现
  */
 
+// 直接导入 agent-events 模块验证订阅机制
+import { onAgentEvent } from "openclaw/infra/agent-events";
 import type { OpenClawPluginApi, OpenClawPluginService } from "openclaw/plugin-sdk/plugin-entry";
 import type { XClawConfig } from "./src/types.js";
 import { XClawWebSocketClient } from "./src/websocket-client.js";
@@ -101,6 +103,14 @@ export function registerXClawPlugin(api: OpenClawPluginApi) {
     info("[XClaw] agent_turn_prepare 钩子触发 - 插件正在工作");
     return {};
   });
+
+  // ✅ 测试：直接导入 onAgentEvent 订阅
+  // 绕过 registerAgentEventSubscription，看看是不是这个 API 的问题
+  onAgentEvent((event: any) => {
+    info(`[XClaw] onAgentEvent 直接导入收到: stream=${event.stream}, runId=${event.runId}`);
+    client.forwardEvent(event);
+  });
+  info("[XClaw] onAgentEvent 直接导入订阅已注册");
 
   // ✅ 注册 Agent 事件订阅（核心功能）
   const subscription = {
