@@ -10,9 +10,18 @@ export const xclawPluginReload = { restartPrefixes: ["xclaw"] };
 
 /**
  * 获取插件配置
+ * 支持两种配置路径：
+ * 1. 根路径: api.config.xclaw
+ * 2. 插件配置路径: api.config.plugins.entries.xclaw.config
  */
 function getXClawConfig(api: OpenClawPluginApi): XClawConfig {
-  const pluginConfig = (api.config as { xclaw?: Partial<XClawConfig> })?.xclaw || {};
+  const config = api.config as {
+    xclaw?: Partial<XClawConfig>;
+    plugins?: { entries?: { xclaw?: { config?: Partial<XClawConfig> } } };
+  };
+
+  // 优先使用根路径配置，其次使用插件配置路径
+  const pluginConfig = config.xclaw || config.plugins?.entries?.xclaw?.config || {};
 
   const defaultConfig: XClawConfig = {
     enabled: true,
