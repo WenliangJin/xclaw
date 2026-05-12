@@ -8,4 +8,8 @@
  * - finalizeInboundContext 构建标准化消息上下文
  */
 
-export { registerXClawPlugin, xclawPluginReload } from "./plugin-registration.js";
+import { registerXClawPlugin, xclawPluginReload } from "./plugin-registration.js";
+
+// ✅ OpenClaw 插件必须导出 register 函数！
+export const register = registerXClawPlugin;
+export const reload = xclawPluginReload;
