@@ -6,10 +6,8 @@
   "author": "XClaw Team",
   "license": "MIT",
   "keywords": ["streaming", "websocket", "xclaw", "forwarder"],
-  "enabledByDefault": true,
   "activation": {
-    "onStartup": true,
-    "onConfigPaths": ["xclaw"]
+    "onStartup": true
   },
   "capabilities": {
     "agentEvents": true,
