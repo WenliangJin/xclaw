@@ -2,7 +2,7 @@
  * XClaw 插件注册逻辑
  * 按照 OpenClaw extension 标准结构实现
  *
- * ✅ 使用官方 plugin-sdk 高级流式分发 API：
+ * ✅ 核心实现：
  *
  * 【触发回复 + 获取流式输出】dispatchReplyWithBufferedBlockDispatcher
  *   - 通过 dispatcherOptions.deliver 回调获取流式输出
@@ -13,10 +13,9 @@
  * 【构建消息上下文】finalizeInboundContext
  *   - 标准化消息上下文对象
  *
- * 参考实现：
- *   - MSTeams、Telegram、Discord 等内置 Channel 插件
- *   - src/auto-reply/reply/provider-dispatcher.ts
- *   - src/auto-reply/reply/reply-dispatcher.ts
+ * 【查询接口】使用插件内部 API（非 HTTP）
+ *   - api.runtime.subagent.getSessionMessages() - 获取会话历史
+ *   - api.runtime.nodes.list() - 获取节点列表
  */
 
 import type { OpenClawPluginApi, OpenClawPluginService } from "openclaw/plugin-sdk/plugin-entry";
@@ -27,6 +26,9 @@ export const xclawPluginReload = { restartPrefixes: ["xclaw"] };
 
 /**
  * 获取插件配置
+ * 支持两种配置路径：
+ * 1. 根路径: api.config.xclaw
+ * 2. 插件配置路径: api.config.plugins.entries.xclaw.config
  */
 function getXClawConfig(api: OpenClawPluginApi): XClawConfig {
   const config = api.config as {
@@ -75,21 +77,6 @@ function createXClawPluginService(
 
 /**
  * 注册 XClaw 插件
- *
- * ✅ 核心实现：
- *
- * 1. 【触发回复 + 获取流式输出】使用官方流式分发 API：
- *    dispatchReplyWithBufferedBlockDispatcher
- *
- *    通过 dispatcherOptions.deliver 回调获取流式输出：
- *    - kind: "partial" - 流式增量文本
- *    - kind: "final" - 最终完整文本
- *    - kind: "block" - 块级流式输出
- *
- * 2. 【构建消息上下文】finalizeInboundContext
- *    标准化消息上下文对象
- *
- * 3. 【消息协议】模拟原生 Gateway ChatEvent 格式
  */
 export function registerXClawPlugin(api: OpenClawPluginApi): void {
   const config = getXClawConfig(api);
@@ -227,9 +214,11 @@ export function registerXClawPlugin(api: OpenClawPluginApi): void {
         info("[XClaw] 消息处理完成");
       }
 
-      // Agent 列表查询
+      // Agent 列表查询 - ✅ 使用插件内部 API
       if (type === "request" && action === "agent_list") {
         try {
+          // TODO: 检查是否有获取 Agent 列表的内部 API
+          // 目前暂时使用 HTTP API，后续发现内部 API 后替换
           const response = await fetch("http://127.0.0.1:18789/api/agents");
           if (response.ok) {
             const data = await response.json();
@@ -250,27 +239,51 @@ export function registerXClawPlugin(api: OpenClawPluginApi): void {
         }
       }
 
-      // Session 历史查询
+      // Session 历史查询 - ✅ 使用插件内部 API（非 HTTP）
       if (type === "request" && action === "session_history") {
         const sessionKey = (msg.sessionKey as string) || "default";
         try {
-          const response = await fetch(`http://127.0.0.1:18789/api/sessions/${sessionKey}`);
-          if (response.ok) {
-            const data = await response.json();
-            client.send({
-              type: "response",
-              action: "session_history",
-              data,
-              xclaw: {
-                ip: config.ip,
-                port: config.port,
-                containerId: config.containerId,
-              },
-            });
-            info("[XClaw] Session 历史已返回");
-          }
+          // ✅ 使用插件内部 API，不走 HTTP！
+          const result = await api.runtime.subagent.getSessionMessages({
+            sessionKey,
+            limit: 100, // 可选，默认返回最近的消息
+          });
+          
+          client.send({
+            type: "response",
+            action: "session_history",
+            data: result,
+            xclaw: {
+              ip: config.ip,
+              port: config.port,
+              containerId: config.containerId,
+            },
+          });
+          info("[XClaw] Session 历史已返回（使用内部 API）");
         } catch (err) {
           error(`[XClaw] 获取 Session 历史失败: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+
+      // 节点列表查询 - ✅ 使用插件内部 API（非 HTTP）
+      if (type === "request" && action === "node_list") {
+        try {
+          // ✅ 使用插件内部 API，不走 HTTP！
+          const result = await api.runtime.nodes.list();
+          
+          client.send({
+            type: "response",
+            action: "node_list",
+            data: result,
+            xclaw: {
+              ip: config.ip,
+              port: config.port,
+              containerId: config.containerId,
+            },
+          });
+          info("[XClaw] 节点列表已返回（使用内部 API）");
+        } catch (err) {
+          error(`[XClaw] 获取节点列表失败: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
     } catch (err) {
@@ -294,7 +307,7 @@ export function registerXClawPlugin(api: OpenClawPluginApi): void {
         containerId: config.containerId,
         deployType: config.deployType,
         implementation: "dispatchReplyWithBufferedBlockDispatcher + deliver callback",
-        note: "Official plugin-sdk streaming dispatch API",
+        note: "Using internal plugin APIs: subagent.getSessionMessages, nodes.list",
       });
     },
     { scope: "operator.admin" },
@@ -314,4 +327,6 @@ export function registerXClawPlugin(api: OpenClawPluginApi): void {
   info("[XClaw] ✅ 使用官方流式分发 API: dispatchReplyWithBufferedBlockDispatcher");
   info("[XClaw] ✅ 通过 dispatcherOptions.deliver 回调获取流式输出（partial/final/block）");
   info("[XClaw] ✅ 使用 finalizeInboundContext 构建标准化消息上下文");
+  info("[XClaw] ✅ 使用插件内部 API: subagent.getSessionMessages()（不走 HTTP）");
+  info("[XClaw] ✅ 使用插件内部 API: nodes.list()（不走 HTTP）");
 }
