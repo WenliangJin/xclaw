@@ -96,15 +96,20 @@ export function registerXClawPlugin(api: OpenClawPluginApi) {
   // ✅ 同步初始化客户端，避免懒加载时序问题
   const client = new XClawWebSocketClient(config, api.logger || console);
 
+  // ✅ 测试：注册一个简单的生命周期钩子，验证插件能正常工作
+  api.on("agent_turn_prepare", () => {
+    info("[XClaw] agent_turn_prepare 钩子触发 - 插件正在工作");
+    return {};
+  });
+
   // ✅ 注册 Agent 事件订阅（核心功能）
-  // 确保 handle 是同步函数，使用最简化的实现
   const subscription = {
     id: "xclaw-forwarder",
     description: "XClaw 平台流式输出转发器",
     streams: config.streams,
     handle: (event: any, ctx: any) => {
       try {
-        info(`[XClaw] 收到事件: stream=${event.stream}, runId=${event.runId}`);
+        info(`[XClaw] 收到事件 stream=${event.stream}, runId=${event.runId}`);
         client.forwardEvent(event);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
