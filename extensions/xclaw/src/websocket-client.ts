@@ -33,8 +33,8 @@ export class XClawWebSocketClient {
    * 安全的日志输出方法
    */
   private log(...args: unknown[]): void {
-    if (this.log) {
-      this.log(...args);
+    if (this.logger.log) {
+      this.logger.log(...args);
     } else if (this.logger.info) {
       this.logger.info(...args);
     } else if (this.logger.debug) {
@@ -43,8 +43,8 @@ export class XClawWebSocketClient {
   }
 
   private error(...args: unknown[]): void {
-    if (this.error) {
-      this.error(...args);
+    if (this.logger.error) {
+      this.logger.error(...args);
     } else if (this.logger.warn) {
       this.logger.warn(...args);
     }
