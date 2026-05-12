@@ -45,6 +45,18 @@ export interface XClawConfig {
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
 /**
+ * 兼容的 Logger 接口
+ * 支持 OpenClaw api.logger 和标准 console
+ */
+export interface XClawLogger {
+  log?: (...args: unknown[]) => void;
+  info?: (...args: unknown[]) => void;
+  debug?: (...args: unknown[]) => void;
+  warn?: (...args: unknown[]) => void;
+  error?: (...args: unknown[]) => void;
+}
+
+/**
  * ChatEvent state 类型（与原生 Gateway 兼容）
  */
 export type ChatEventState = "delta" | "final" | "aborted" | "error";

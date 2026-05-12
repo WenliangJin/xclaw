@@ -4,7 +4,13 @@
  */
 
 import { WebSocket } from "ws";
-import type { XClawConfig, ConnectionStatus, NativeChatEvent, AgentEventPayload } from "./types.js";
+import type {
+  XClawConfig,
+  ConnectionStatus,
+  NativeChatEvent,
+  AgentEventPayload,
+  XClawLogger,
+} from "./types.js";
 
 export class XClawWebSocketClient {
   private ws: WebSocket | null = null;
@@ -14,13 +20,34 @@ export class XClawWebSocketClient {
   private config: XClawConfig;
   private messageQueue: AgentEventPayload[] = [];
   private maxQueueSize = 1000;
-  private logger: Console;
+  private logger: XClawLogger;
   /** 全局事件序列号（模拟原生 Gateway 的全局 seq） */
   private globalSeq: number = 0;
 
-  constructor(config: XClawConfig, logger: Console = console) {
+  constructor(config: XClawConfig, logger: XClawLogger = console) {
     this.config = config;
     this.logger = logger;
+  }
+
+  /**
+   * 安全的日志输出方法
+   */
+  private log(...args: unknown[]): void {
+    if (this.log) {
+      this.log(...args);
+    } else if (this.logger.info) {
+      this.logger.info(...args);
+    } else if (this.logger.debug) {
+      this.logger.debug(...args);
+    }
+  }
+
+  private error(...args: unknown[]): void {
+    if (this.error) {
+      this.error(...args);
+    } else if (this.logger.warn) {
+      this.logger.warn(...args);
+    }
   }
 
   /**
@@ -33,7 +60,7 @@ export class XClawWebSocketClient {
     this.config = { ...this.config, ...config };
 
     if (needReconnect && this.ws) {
-      this.logger.log("[XClaw] 配置变更，重新连接...");
+      this.log("[XClaw] 配置变更，重新连接...");
       this.disconnect();
       this.connect().catch(() => {});
     }
@@ -78,7 +105,7 @@ export class XClawWebSocketClient {
 
     this.status = "connecting";
     const url = this.buildConnectUrl();
-    this.logger.log(`[XClaw] 正在连接 WebSocket: ${url}`);
+    this.log(`[XClaw] 正在连接 WebSocket: ${url}`);
 
     return new Promise((resolve, reject) => {
       try {
@@ -86,7 +113,7 @@ export class XClawWebSocketClient {
 
         this.ws.on("open", () => {
           this.status = "connected";
-          this.logger.log("[XClaw] WebSocket 连接成功");
+          this.log("[XClaw] WebSocket 连接成功");
 
           // 发送连接状态通知
           this.sendStatus("connected", "连接成功");
@@ -102,14 +129,14 @@ export class XClawWebSocketClient {
 
         this.ws.on("close", (code, reason) => {
           this.status = "disconnected";
-          this.logger.log(`[XClaw] WebSocket 断开: ${code} ${reason}`);
+          this.log(`[XClaw] WebSocket 断开: ${code} ${reason}`);
           this.stopPing();
           this.scheduleReconnect();
         });
 
         this.ws.on("error", (error) => {
           this.status = "error";
-          this.logger.error("[XClaw] WebSocket 错误:", error.message);
+          this.error("[XClaw] WebSocket 错误:", error.message);
           this.sendStatus("error", error.message);
           reject(error);
         });
@@ -124,7 +151,7 @@ export class XClawWebSocketClient {
         });
       } catch (error) {
         this.status = "error";
-        this.logger.error("[XClaw] 连接失败:", error);
+        this.error("[XClaw] 连接失败:", error);
         reject(error);
       }
     });
@@ -134,7 +161,7 @@ export class XClawWebSocketClient {
    * 处理服务端消息
    */
   private handleServerMessage(message: { type?: string }) {
-    this.logger.log(`[XClaw] 收到服务端消息: ${message.type}`);
+    this.log(`[XClaw] 收到服务端消息: ${message.type}`);
 
     if (message.type === "pong") {
       // 心跳响应，不需要处理
@@ -150,7 +177,7 @@ export class XClawWebSocketClient {
     }
 
     this.reconnectTimer = setTimeout(() => {
-      this.logger.log("[XClaw] 尝试重新连接...");
+      this.log("[XClaw] 尝试重新连接...");
       this.connect().catch(() => {
         // 错误已经在 connect 中处理
       });
@@ -201,7 +228,7 @@ export class XClawWebSocketClient {
       this.ws.send(JSON.stringify(message));
       return true;
     } catch (e) {
-      this.logger.error("[XClaw] 发送消息失败:", e);
+      this.error("[XClaw] 发送消息失败:", e);
       return false;
     }
   }
@@ -408,6 +435,6 @@ export class XClawWebSocketClient {
 
     this.status = "disconnected";
     this.messageQueue = [];
-    this.logger.log("[XClaw] WebSocket 已断开");
+    this.log("[XClaw] WebSocket 已断开");
   }
 }

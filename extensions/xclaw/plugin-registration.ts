@@ -56,7 +56,10 @@ function createLazyXClawPluginService(api: OpenClawPluginApi): OpenClawPluginSer
 
       // 如果未启用，创建空服务
       if (!config.enabled || !config.websocketUrl) {
-        api.logger?.log("[XClaw] 插件未启用或未配置 WebSocket URL，跳过服务启动");
+        const info = (api.logger?.info || api.logger?.debug || console.log).bind(
+          api.logger || console,
+        );
+        info("[XClaw] 插件未启用或未配置 WebSocket URL，跳过服务启动");
         service = {
           id: "xclaw-service",
           start: async () => {},
@@ -92,17 +95,20 @@ function createLazyXClawPluginService(api: OpenClawPluginApi): OpenClawPluginSer
 export function registerXClawPlugin(api: OpenClawPluginApi) {
   const config = getXClawConfig(api);
 
+  const info = (api.logger?.info || api.logger?.debug || console.log).bind(api.logger || console);
+  const warn = (api.logger?.warn || console.warn).bind(api.logger || console);
+
   if (!config.enabled) {
-    api.logger?.log("[XClaw] 插件已禁用");
+    info("[XClaw] 插件已禁用");
     return;
   }
 
   if (!config.websocketUrl) {
-    api.logger?.warn("[XClaw] 未配置 websocketUrl，插件将无法转发事件");
+    warn("[XClaw] 未配置 websocketUrl，插件将无法转发事件");
     return;
   }
 
-  api.logger?.log(`[XClaw] 注册 XClaw 插件，目标: ${config.websocketUrl}`);
+  info(`[XClaw] 注册 XClaw 插件，目标: ${config.websocketUrl}`);
 
   // 注册 Agent 事件订阅（核心功能）
   api.registerAgentEventSubscription({
@@ -166,11 +172,13 @@ export function registerXClawPlugin(api: OpenClawPluginApi) {
 
   // ✅ 插件注册时立即初始化连接（启动即连接，无需等待第一个事件）
   import("./src/runtime.js").then(({ getXClawClient }) => {
-    const client = getXClawClient(config, api.logger || console);
+    const logger = api.logger || console;
+    const client = getXClawClient(config, logger);
     client.connect().catch((err) => {
-      api.logger?.warn(`[XClaw] 首次连接失败，后续会自动重试: ${err.message}`);
+      const warnFn = logger.warn ? logger.warn.bind(logger) : console.warn;
+      warnFn(`[XClaw] 首次连接失败，后续会自动重试: ${err.message}`);
     });
   });
 
-  api.logger?.log("[XClaw] 插件注册完成");
+  info("[XClaw] 插件注册完成");
 }

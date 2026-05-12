@@ -4,7 +4,7 @@
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { XClawConfig } from "./types.js";
+import type { XClawConfig, XClawLogger } from "./types.js";
 import { XClawWebSocketClient } from "./websocket-client.js";
 
 let client: XClawWebSocketClient | null = null;
@@ -14,7 +14,7 @@ let client: XClawWebSocketClient | null = null;
  */
 export function getXClawClient(
   config: XClawConfig,
-  logger: Console = console,
+  logger: XClawLogger = console,
 ): XClawWebSocketClient {
   if (!client) {
     client = new XClawWebSocketClient(config, logger);
@@ -27,7 +27,7 @@ export function getXClawClient(
 /**
  * 事件处理器
  */
-export function createXClawEventHandler(config: XClawConfig, logger: Console = console) {
+export function createXClawEventHandler(config: XClawConfig, logger: XClawLogger = console) {
   const client = getXClawClient(config, logger);
 
   return {
@@ -72,27 +72,32 @@ export function registerXClawAgentEventSubscription(api: OpenClawPluginApi, conf
 export function createXClawPluginService(config: XClawConfig) {
   let handler: ReturnType<typeof createXClawEventHandler> | null = null;
 
+  const getLogFn = (logger: XClawLogger) =>
+    logger.log ? logger.log.bind(logger) : logger.info ? logger.info.bind(logger) : console.log;
+
   return {
     id: "xclaw-service",
-    start: async (ctx: { logger?: Console } = {}) => {
+    start: async (ctx: { logger?: XClawLogger } = {}) => {
       const logger = ctx.logger || console;
-      logger.log("[XClaw] 启动 XClaw 服务...");
+      const log = getLogFn(logger);
+      log("[XClaw] 启动 XClaw 服务...");
 
       handler = createXClawEventHandler(config, logger);
       await handler.start();
 
-      logger.log("[XClaw] XClaw 服务启动完成");
+      log("[XClaw] XClaw 服务启动完成");
     },
-    stop: async (ctx: { logger?: Console } = {}) => {
+    stop: async (ctx: { logger?: XClawLogger } = {}) => {
       const logger = ctx.logger || console;
-      logger.log("[XClaw] 停止 XClaw 服务...");
+      const log = getLogFn(logger);
+      log("[XClaw] 停止 XClaw 服务...");
 
       if (handler) {
         handler.stop();
         handler = null;
       }
 
-      logger.log("[XClaw] XClaw 服务已停止");
+      log("[XClaw] XClaw 服务已停止");
     },
   };
 }
