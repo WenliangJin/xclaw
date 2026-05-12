@@ -214,26 +214,33 @@ export function registerXClawPlugin(api: OpenClawPluginApi): void {
         info("[XClaw] 消息处理完成");
       }
 
-      // Agent 列表查询 - ✅ 使用插件内部 API
+      // Agent 列表查询 - ✅ 直接从 api.config 提取，不走网络！
       if (type === "request" && action === "agent_list") {
         try {
-          // TODO: 检查是否有获取 Agent 列表的内部 API
-          // 目前暂时使用 HTTP API，后续发现内部 API 后替换
-          const response = await fetch("http://127.0.0.1:18789/api/agents");
-          if (response.ok) {
-            const data = await response.json();
-            client.send({
-              type: "response",
-              action: "agent_list",
-              data,
-              xclaw: {
-                ip: config.ip,
-                port: config.port,
-                containerId: config.containerId,
-              },
-            });
-            info("[XClaw] Agent 列表已返回");
-          }
+          // ✅ 直接从插件 API 中获取配置，不走任何网络！
+          const cfg = api.config as any;
+          const agents = cfg.agents || {};
+          
+          const agentList = Object.entries(agents).map(([id, agentConfig]: [string, any]) => ({
+            id,
+            name: agentConfig.name || id,
+            description: agentConfig.description || "",
+            model: agentConfig.model?.name || agentConfig.model || "default",
+            enabled: agentConfig.enabled !== false,
+            systemPrompt: agentConfig.systemPrompt || "",
+          }));
+          
+          client.send({
+            type: "response",
+            action: "agent_list",
+            data: { agents: agentList },
+            xclaw: {
+              ip: config.ip,
+              port: config.port,
+              containerId: config.containerId,
+            },
+          });
+          info("[XClaw] Agent 列表已返回（直接从配置提取，零网络开销）");
         } catch (err) {
           error(`[XClaw] 获取 Agent 列表失败: ${err instanceof Error ? err.message : String(err)}`);
         }
