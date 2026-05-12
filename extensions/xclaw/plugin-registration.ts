@@ -155,5 +155,13 @@ export function registerXClawPlugin(api: OpenClawPluginApi) {
     },
   );
 
+  // ✅ 插件注册时立即初始化连接（启动即连接，无需等待第一个事件）
+  import("./src/runtime.js").then(({ getXClawClient }) => {
+    const client = getXClawClient(config, api.logger || console);
+    client.connect().catch((err) => {
+      api.logger?.warn(`[XClaw] 首次连接失败，后续会自动重试: ${err.message}`);
+    });
+  });
+
   api.logger?.log("[XClaw] 插件注册完成");
 }
